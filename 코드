@@ -1,0 +1,72 @@
+c++ 코드(피아노 코드)
+
+#include <iostream>
+#include <windows.h>
+#include <map>
+#include <string>
+// 🎼 [1] Base class: 악기 인터페이스
+class Instrument {
+public:
+    virtual void play() const = 0; // 다형성을 위한 가상 함수
+    virtual ~Instrument() {}       // 소멸자도 가상으로
+};
+// 🎵 [2] Note 클래스: Instrument 상속
+class Note : public Instrument {
+    std::string name;
+    int frequency;
+public:
+    // 생성자
+    Note(const std::string& n = "", int f = 0) : name(n), frequency(f) {}
+    // 🎶 [3] 함수 오버로딩 - 기본 연주
+    void play() const override {
+        if (frequency > 0) {
+            std::cout << *this;
+            Beep(frequency, 300);
+        }
+    }
+    // 🎶 [3-2] 함수 오버로딩 - 연주 시간 선택
+    void play(int durationMs) const {
+        if (frequency > 0) {
+            std::cout << name << " (" << frequency << "Hz, " << durationMs << "ms)\n";
+            Beep(frequency, durationMs);
+        }
+    }
+    // 🎤 [4] 연산자 오버로딩: << 사용해서 음 정보 출력
+    friend std::ostream& operator<<(std::ostream& os, const Note& n) {
+        os << n.name << " (" << n.frequency << "Hz)\n";
+        return os;
+    }
+    // 접근자
+    int getFrequency() const { return frequency; }
+    std::string getName() const { return name; }
+};
+// 🧠 [5] 템플릿 함수: 어떤 타입이든 정보 출력
+template<typename T>
+void showInfo(const T& item) {
+    std::cout << "Info: " << item << "\n";
+}
+int main() {
+    std::map<char, Note> notes = {
+        {'a', {"C", 261}}, {'s', {"D", 293}}, {'d', {"E", 329}},
+        {'f', {"F", 349}}, {'g', {"G", 392}}, {'h', {"A", 440}},
+        {'j', {"B", 493}}, {'k', {"C (high)", 523}}, {'l', {"D (high)", 587}}
+    };
+    std::cout << "== 콘솔 피아노 🎹 ==\n";
+    std::cout << "[a~l] 음 연주 | [q] 종료\n";
+    char key;
+    while (true) {
+        std::cout << "\n키 입력: ";
+        std::cin >> key;
+        if (key == 'q') break;
+        auto it = notes.find(key);
+        if (it != notes.end()) {
+            Instrument* instrument = &it->second; // 다형성 적용
+            instrument->play();                  // virtual 함수 호출
+            showInfo(it->second.getName());      // 템플릿 함수 사용
+        }
+        else {
+            std::cout << "알 수 없는 키입니다.\n";
+        }
+    }
+    return 0;
+}
