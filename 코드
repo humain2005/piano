@@ -1,75 +1,89 @@
-#include <iostream>
-#include <fstream>
-#include <cmath>
-#include <map>
-#include <string>
-#include <vector>
-#include <memory>
-#include <windows.h>
-#include <mmsystem.h>
-#pragma comment(lib, "winmm.lib")
+// 필수 라이브러리 포함
+#include <iostream>      // 콘솔 입출력
+#include <fstream>       // 파일 입출력 (WAV 파일 저장용)
+#include <cmath>         // 수학 함수 (사인파 생성용)
+#include <map>           // 문자-음표 매핑용
+#include <string>        // 문자열 처리
+#include <vector>        // 동적 배열 (샘플 저장용)
+#include <memory>        // 스마트 포인터 사용을 위함
+#include <windows.h>     // 윈도우 API (사운드 재생 포함)
+#include <mmsystem.h>    // 사운드 재생 함수 사용을 위한 헤더
+#pragma comment(lib, "winmm.lib") // 윈도우 사운드 라이브러리 연결
 
-const int SAMPLE_RATE = 44100;
-const int BITS_PER_SAMPLE = 16;
-const int CHANNELS = 1;
-const int DEFAULT_DURATION = 300; // ms
+// 오디오 설정 값 상수로 정의
+const int SAMPLE_RATE = 44100;         // 샘플링 레이트 (초당 44100개 샘플)
+const int BITS_PER_SAMPLE = 16;        // 샘플당 비트 수 (16비트 = 2바이트)
+const int CHANNELS = 1;                // 모노 오디오
+const int DEFAULT_DURATION = 300;      // 기본 음표/쉼표 길이 (밀리초)
 
-//-----------------------------------------------
-// Note 클래스 (연산자 오버로딩 포함)
-//-----------------------------------------------
+//--------------------------------------------------
+// Note 클래스: 하나의 음 정보를 저장하는 클래스
+//--------------------------------------------------
 class Note {
 public:
-    std::string name;
-    double frequency;
+    std::string name;     // 음 이름 (예: "C", "D", "A" 등)
+    double frequency;     // 해당 음의 주파수 (Hz)
 
+    // 기본 생성자
     Note() : name(""), frequency(0) {}
+
+    // 매개변수 생성자
     Note(const std::string& n, double f) : name(n), frequency(f) {}
 
+    // 동등 비교 연산자 오버로딩 (Note끼리 비교 가능)
     bool operator==(const Note& other) const {
         return name == other.name && frequency == other.frequency;
     }
 
+    // 출력 연산자 오버로딩 (<< 사용 시 "C(261.63Hz)"처럼 출력)
     friend std::ostream& operator<<(std::ostream& os, const Note& n) {
         return os << n.name << "(" << n.frequency << "Hz)";
     }
 };
 
-//-----------------------------------------------
-// 추상 클래스 SoundElement (다형성 구현용)
-//-----------------------------------------------
+//--------------------------------------------------
+// SoundElement 추상 클래스 (다형성 기반)
+//--------------------------------------------------
 class SoundElement {
 public:
+    // 순수 가상 함수: 사운드 샘플 버퍼에 음 또는 쉼표를 추가
     virtual void appendToBuffer(std::vector<short>& buffer) const = 0;
+
+    // 소멸자 (가상 소멸자 필요)
     virtual ~SoundElement() = default;
 };
 
-//-----------------------------------------------
-// 음표 클래스 (ToneNote)
-//-----------------------------------------------
+//--------------------------------------------------
+// ToneNote 클래스: 실제 음을 표현
+//--------------------------------------------------
 class ToneNote : public SoundElement {
-    Note note;
-    int duration;
+    Note note;     // 어떤 음인지
+    int duration;  // 지속 시간 (기본값 300ms)
 public:
+    // 생성자
     ToneNote(const Note& n, int d = DEFAULT_DURATION) : note(n), duration(d) {}
 
+    // 실제 사운드 샘플을 사인파 형태로 생성해서 버퍼에 추가
     void appendToBuffer(std::vector<short>& buffer) const override {
-        int samples = SAMPLE_RATE * duration / 1000;
+        int samples = SAMPLE_RATE * duration / 1000;  // 생성할 샘플 수 계산
         for (int i = 0; i < samples; ++i) {
-            double t = static_cast<double>(i) / SAMPLE_RATE;
-            short sample = static_cast<short>(32760 * sin(2 * 3.141592653589793 * note.frequency * t));
-            buffer.push_back(sample);
+            double t = static_cast<double>(i) / SAMPLE_RATE; // 시간 (초)
+            short sample = static_cast<short>(
+                32760 * sin(2 * 3.141592653589793 * note.frequency * t)); // 사인파 계산
+            buffer.push_back(sample); // 버퍼에 추가
         }
     }
 };
 
-//-----------------------------------------------
-// 휴지음 클래스 (RestNote)
-//-----------------------------------------------
+//--------------------------------------------------
+// RestNote 클래스: 쉼표 (무음 구간) 표현
+//--------------------------------------------------
 class RestNote : public SoundElement {
-    int duration;
+    int duration; // 무음 지속 시간 (기본 300ms)
 public:
     RestNote(int d = DEFAULT_DURATION) : duration(d) {}
 
+    // duration 동안 0값을 넣어 무음 처리
     void appendToBuffer(std::vector<short>& buffer) const override {
         int samples = SAMPLE_RATE * duration / 1000;
         for (int i = 0; i < samples; ++i) {
@@ -78,23 +92,25 @@ public:
     }
 };
 
-//-----------------------------------------------
-// WAV 파일 저장 함수
-//-----------------------------------------------
+//--------------------------------------------------
+// WAV 파일로 샘플을 저장하는 함수
+//--------------------------------------------------
 void writeWavFile(const std::string& filename, const std::vector<short>& samples) {
-    std::ofstream file(filename, std::ios::binary);
-    int dataSize = samples.size() * sizeof(short);
-    int fileSize = 36 + dataSize;
+    std::ofstream file(filename, std::ios::binary);  // 이진 파일 모드로 열기
+    int dataSize = samples.size() * sizeof(short);   // 전체 데이터 크기 계산
+    int fileSize = 36 + dataSize;                    // 전체 파일 크기 계산
 
+    // WAV 파일 헤더 작성 (RIFF 형식)
     file.write("RIFF", 4);
     file.write(reinterpret_cast<const char*>(&fileSize), 4);
     file.write("WAVEfmt ", 8);
 
-    int fmtSize = 16;
-    short audioFormat = 1;
+    int fmtSize = 16; // PCM 형식
+    short audioFormat = 1; // 1은 무압축 PCM
     short blockAlign = CHANNELS * BITS_PER_SAMPLE / 8;
     int byteRate = SAMPLE_RATE * blockAlign;
 
+    // fmt 서브청크 작성
     file.write(reinterpret_cast<const char*>(&fmtSize), 4);
     file.write(reinterpret_cast<const char*>(&audioFormat), 2);
     file.write(reinterpret_cast<const char*>(&CHANNELS), 2);
@@ -103,15 +119,16 @@ void writeWavFile(const std::string& filename, const std::vector<short>& samples
     file.write(reinterpret_cast<const char*>(&blockAlign), 2);
     file.write(reinterpret_cast<const char*>(&BITS_PER_SAMPLE), 2);
 
+    // data 서브청크 작성
     file.write("data", 4);
     file.write(reinterpret_cast<const char*>(&dataSize), 4);
     file.write(reinterpret_cast<const char*>(samples.data()), dataSize);
     file.close();
 }
 
-//-----------------------------------------------
-// 템플릿 함수 (벡터 출력)
-//-----------------------------------------------
+//--------------------------------------------------
+// 벡터 출력용 템플릿 함수 (디버깅용)
+//--------------------------------------------------
 template<typename T>
 void printVector(const std::vector<T>& v) {
     for (const auto& item : v) {
@@ -120,43 +137,55 @@ void printVector(const std::vector<T>& v) {
     std::cout << "\n";
 }
 
-//-----------------------------------------------
-// Main 함수 (전체 통합)
-//-----------------------------------------------
+//--------------------------------------------------
+// 메인 함수: 사용자 입력 -> 음표 -> WAV 파일 -> 재생
+//--------------------------------------------------
 int main() {
+    // 키보드 입력과 Note 객체 매핑
     std::map<char, Note> notes = {
         {'a', {"C", 261.63}}, {'s', {"D", 293.66}}, {'d', {"E", 329.63}},
         {'f', {"F", 349.23}}, {'g', {"G", 392.00}}, {'h', {"A", 440.00}},
         {'j', {"B", 493.88}}, {'k', {"C_high", 523.25}}, {'l', {"D_high", 587.33}}
     };
+
     std::string line;
+
+    // 반복적으로 사용자 입력을 받아서 처리
     while (true) {
         std::cout << "\n입력: ";
         std::getline(std::cin, line);
-        if (line == "exit") break;
 
-        std::vector<std::shared_ptr<SoundElement>> song;
+        if (line == "exit") break; // "exit" 입력 시 프로그램 종료
 
+        std::vector<std::shared_ptr<SoundElement>> song; // 음표/쉼표 저장용
+
+        // 입력 문자열을 순회하며 처리
         for (char key : line) {
             if (key == ' ') {
+                // 공백은 쉼표 처리
                 song.push_back(std::make_shared<RestNote>());
             }
             else if (notes.count(key)) {
+                // 해당 키에 해당하는 Note가 있으면 음표 추가
                 song.push_back(std::make_shared<ToneNote>(notes[key]));
             }
             else {
+                // 정의되지 않은 키인 경우 에러 메시지 출력
                 std::cout << "(error: " << key << ")\n";
             }
         }
 
         std::vector<short> samples;
+
+        // 각 SoundElement에서 사운드 샘플을 생성해 버퍼에 추가
         for (const auto& element : song) {
             element->appendToBuffer(samples);
         }
 
+        // 샘플을 WAV 파일로 저장하고 즉시 재생
         writeWavFile("output.wav", samples);
         PlaySoundA("output.wav", NULL, SND_FILENAME | SND_SYNC);
     }
 
-    return 0;
+    return 0; // 프로그램 종료
 }
