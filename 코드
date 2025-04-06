@@ -129,10 +129,6 @@ int main() {
         {'f', {"F", 349.23}}, {'g', {"G", 392.00}}, {'h', {"A", 440.00}},
         {'j', {"B", 493.88}}, {'k', {"C_high", 523.25}}, {'l', {"D_high", 587.33}}
     };
-
-    std::cout << "== 콘솔 피아노 (과제 버전) ==\n";
-    std::cout << "[a~l] 음 입력 | 스페이스: 쉼표 | exit: 종료\n";
-
     std::string line;
     while (true) {
         std::cout << "\n입력: ";
@@ -149,7 +145,7 @@ int main() {
                 song.push_back(std::make_shared<ToneNote>(notes[key]));
             }
             else {
-                std::cout << "(알 수 없는 키: " << key << ")\n";
+                std::cout << "(error: " << key << ")\n";
             }
         }
 
